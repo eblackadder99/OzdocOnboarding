@@ -39,7 +39,7 @@ $ozdocLogo.Add_Click({
     Start-Process "https://www.ozdoc.com.au"
 })
 
-## Create OK button
+## Create Enter button
 $enterButton = New-Object System.Windows.Forms.Button
 $enterButton.Location = New-Object System.Drawing.Point(75,515)
 $enterButton.Size = New-Object System.Drawing.Size(75,23)
@@ -173,7 +173,7 @@ $newDescription.Add_MouseLeave({
     $newDescription.BackColor = [System.Drawing.Color]::White
 })
 
-## Adds a combo box to AD Sync
+## Adds a checkbox for AD Sync
 $ADSyncCheck = New-Object System.Windows.Forms.CheckBox
 $ADSyncCheck.Location = New-Object System.Drawing.Size(220,327)
 $ADSyncCheck.Size = New-Object System.Drawing.Size (150,25)
@@ -189,6 +189,23 @@ $365LicenseSelection.Items.Add("Business Standard")
 $365LicenseSelection.Items.Add("None")
 $onboardingUserForm.Controls.Add($365LicenseSelection)
 $365LicenseSelection.Name = "365LicenseSelectionField"
+
+## Adds a checkbox for mailbox selection
+$mailboxAccessCheck = New-Object System.Windows.Forms.CheckBox
+$mailboxAccessCheck.Location = New-Object System.Drawing.Size(270,424)
+$mailboxAccessCheck.Size = New-Object System.Drawing.Size (150,25)
+$onboardingUserForm.Controls.Add($mailboxAccessCheck)
+$mailboxAccessCheck.Name = "mailboxAccessCheckField"
+
+## Event handler fpr mailbox selection check
+$mailboxCheckedChanged = {
+    if ($mailboxAccessCheck.Checked) {
+        ## Shows the mailbox form if the checkbox selected
+        $mailboxSelectionForm.ShowDialog()
+    }
+}
+# Register the event
+$mailboxAccessCheck.add_CheckedChanged($mailboxCheckedChanged)
 
 ## Header label
 $headerLabel = New-Object System.Windows.Forms.Label
@@ -262,9 +279,9 @@ $onboardingUserForm.Controls.Add($siteVerificationLabel)
 
 ## 
 $mailboxAccessLabel = New-Object System.Windows.Forms.Label
-$mailboxAccessLabel.Location = New-Object System.Drawing.Point(13,400)
+$mailboxAccessLabel.Location = New-Object System.Drawing.Point(13,425)
 $mailboxAccessLabel.AutoSize = $true
-$mailboxAccessLabel.Text = 'Have you verified which site the user will be at?'
+$mailboxAccessLabel.Text = 'Does the user require access to any mailboxes?'
 $onboardingUserForm.Controls.Add($mailboxAccessLabel)
 
 #region Required Fields
@@ -317,14 +334,16 @@ if ($result = $true)
     $newDescription = $newDescription.Text
     $365LicenseSelection = $365LicenseSelection.Text
     $ADSyncCheck = $ADSyncCheck.Checked
+    $assignMailboxCheck = $mailboxAccessCheck.Checked
     $splitName = $newDisplayName -split ' '
     $newFirstName = $splitName[0]
     $newLastName = $splitName[1]
     $newName = "$newFirstName $newLastName"
+    $mailboxAccessType = $mailboxAccessType.Text
+    $mailbox = $ListBox.Items | ForEach-Object { $_.ToString() }
 
     Write-Host "All information has been entered"
 }
-
 #endregion User Creation Form
 
 #region AD User Creation
@@ -489,8 +508,37 @@ if ($null -ne $365Group) {
     Write-Host "The BSN-Employees group does not exist in 365."
     }
 }
+
+#endregion 365 User Setup
+
+#region Assign mailbox access
+
+if ($mailboxAccessType -eq "Full Access") {
+    $mailboxAccess = "FullAccess"
+    Write-Host `n"Assigning full access to selected mailboxes`r"
+}
+elseif ($mailboxAccessType -eq "Send As") {
+    $mailboxAccess = "SendAs"
+    Write-Host `n"Assigning send as access to selected mailboxes`r"
+}
+elseif ($mailboxAccessType -eq "Read Only") {
+    $mailboxAccess = "ReadOnly"
+    Write-Host `n"Assigning read only access to selected mailboxes`r"
+}
+
+if ($assignMailboxCheck = $true) {
+Connect-ExchangeOnline
+foreach ($mbx in $mailbox) {
+    Add-MailboxPermission -Identity $mbx -User $newUserLogonName -AccessRights $mailboxAccess
+    }
+}
+
+#endregion Assign mailbox Access
+
+#region End Script
+
 Write-Host `n "Account creation process complete, stopping script`r"
 Read-Host -Prompt "Press Enter to continue"
 exit
 
-#endregion 365 User Setup
+#endregion End Script
