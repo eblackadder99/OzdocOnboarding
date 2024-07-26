@@ -94,19 +94,27 @@ $base64 = "iVBORw0KGgoAAAANSUhEUgAAAbgAAAB2CAYAAAC6X4bDAAAAAXNSR0IArs4c6QAAAARnQ
 $bytes = [System.Convert]::FromBase64String($base64)
 $ms = New-Object System.IO.MemoryStream($bytes, 0, $bytes.Length)
 $ozdocLogoImage = [System.Drawing.Image]::FromStream($ms)
+$ms.Seek(0, [System.IO.SeekOrigin]::Begin) | Out-Null
 
-## Add the Ozdoc logo
+$iconSize = New-Object System.Drawing.Size(32, 32)
+$iconBitmap = New-Object System.Drawing.Bitmap($ozdocLogoImage, $iconSize)
+$ozdocLogoIcon = [System.Drawing.Icon]::FromHandle($iconBitmap.GetHicon())
+
+$onboardingUserForm.Icon = $ozdocLogoIcon
+
 $ozdocLogo = New-Object System.Windows.Forms.PictureBox
 $ozdocLogo.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
-$ozdocLogo.Location = New-Object System.Drawing.Point (200,0)
+$ozdocLogo.Location = New-Object System.Drawing.Point(200, 0)
 $ozdocLogo.Width = 125
 $ozdocLogo.Height = 30
-$ozdocLogoImage = $ozdocLogoImage
-$ozdocLogo.Image = $OzdocLogoImage
+$ozdocLogo.Image = $ozdocLogoImage
 $onboardingUserForm.Controls.Add($ozdocLogo)
+
 $ozdocLogo.Add_Click({
     Start-Process "https://www.ozdoc.com.au"
 })
+
+$ms.Dispose()
 
 ## Create Enter button
 $enterButton = New-Object System.Windows.Forms.Button
@@ -334,7 +342,7 @@ $mailboxHeaderLabel.AutoSize = $true
 $mailboxHeaderLabel.Text = 'Please add mailboxes to assign access to'
 $mailboxSelectionForm.Controls.Add($mailboxHeaderLabel)
 
-## 
+## Access level label
 $accessSelectionLabel = New-Object System.Windows.Forms.Label
 $accessSelectionLabel.Location = New-Object System.Drawing.Point(13,200)
 $accessSelectionLabel.AutoSize = $true
