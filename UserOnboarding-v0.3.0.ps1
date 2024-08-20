@@ -19,69 +19,72 @@ Write-Host "Running as an administrator."
 #endregion Powershell Admin Check
 
 #region Check Current Script Location
-
 ## Check if the script is being run from C:\Ozdoc\UserOnboarding
 $scriptExists = $true
 
 if ((Get-Location).Path -ne "C:\Ozdoc\UserOnboarding") {
-    $scriptExists = $false
-    ## Get the latest release information from GitHub
-    $latestRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/eblackadder99/OzdocOnboarding/releases/latest'
-    $latestTag = $latestRelease.tag_name
-    $downloadUrl = "https://github.com/eblackadder99/OzdocOnboarding/archive/refs/tags/$latestTag.zip"
+    if (-Not (Test-Path -Path "C:\Ozdoc\UserOnboarding")) {
+        $scriptExists = $false
+        ## Get the latest release information from GitHub
+        $latestRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/eblackadder99/OzdocOnboarding/releases/latest'
+        $latestTag = $latestRelease.tag_name
+        $downloadUrl = "https://github.com/eblackadder99/OzdocOnboarding/archive/refs/tags/$latestTag.zip"
 
-    ## Download the latest release zip file
-    Invoke-WebRequest -Uri $downloadUrl -OutFile C:\Ozdoc\UserOnboarding.zip
+        ## Download the latest release zip file
+        Invoke-WebRequest -Uri $downloadUrl -OutFile C:\Ozdoc\UserOnboarding.zip
 
-    ## Extract the downloaded zip file
-    Expand-Archive -Path C:\Ozdoc\UserOnboarding.zip -DestinationPath C:\Ozdoc\ -ErrorAction SilentlyContinue
+        ## Extract the downloaded zip file
+        Expand-Archive -Path C:\Ozdoc\UserOnboarding.zip -DestinationPath C:\Ozdoc\ -ErrorAction SilentlyContinue
 
-    ## Get the name of the extracted folder
-    $extractedFolder = Get-ChildItem -Path C:\Ozdoc\ | Where-Object { $_.PSIsContainer -and $_.Name -like "OzdocOnboarding-*" } | Select-Object -First 1
+        ## Get the name of the extracted folder
+        $extractedFolder = Get-ChildItem -Path C:\Ozdoc\ | Where-Object { $_.PSIsContainer -and $_.Name -like "OzdocOnboarding-*" } | Select-Object -First 1
 
-    ## Remove the existing 'UserOnboarding' folder if it exists
-    if (Test-Path -Path C:\Ozdoc\UserOnboarding) {
-        Remove-Item -Path C:\Ozdoc\UserOnboarding -Recurse -Force
+        ## Remove the existing 'UserOnboarding' folder if it exists
+        if (Test-Path -Path C:\Ozdoc\UserOnboarding) {
+            Remove-Item -Path C:\Ozdoc\UserOnboarding -Recurse -Force
+        }
+
+        ## Rename the extracted folder to 'UserOnboarding'
+        Rename-Item -Path $extractedFolder.FullName -NewName C:\Ozdoc\UserOnboarding -Force
+
+        ## Remove the downloaded zip file
+        Remove-Item -Path C:\Ozdoc\UserOnboarding.zip -Force
+
+        ## Get $latestScript
+        Write-Output "`nUpdate was successful, restarting user creation script...`r"
+        Start-Sleep -Seconds 1
+        $latestScript = Get-ChildItem -Path C:\Ozdoc\UserOnboarding\ | Where-Object { $_.Name -like "UserOnboarding-*.ps1" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1    
     }
-
-    ## Rename the extracted folder to 'UserOnboarding'
-    Rename-Item -Path $extractedFolder.FullName -NewName C:\Ozdoc\UserOnboarding -Force
-
-    ## Remove the downloaded zip file
-    Remove-Item -Path C:\Ozdoc\UserOnboarding.zip -Force
-
-    ## Get $latestScript
-    Write-Output "`nUpdate was successful, restarting user creation script...`r"
-    Start-Sleep -Seconds 1
-    $latestScript = Get-ChildItem -Path C:\Ozdoc\UserOnboarding\ | Where-Object { $_.Name -like "UserOnboarding-*.ps1" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1    
 }
 
 ## Check if the script is being run from C:\Ozdoc\Update
 if ((Get-Location).Path -ne "C:\Ozdoc\Update") {
-
     ## Check if the 'Update' folder exists, if not, create it
     if (-NOT(Test-Path -Path C:\Ozdoc\Update)) {
         New-Item -ItemType Directory -Path C:\Ozdoc\Update
     }
 
     ## Move the 'UpdateOnboardingScript.ps1' into the 'Update' folder
-    Move-Item -Path (Join-Path -Path C:\Ozdoc\UserOnboarding -ChildPath 'UpdateOnboardingScript.ps1') -Destination C:\Ozdoc\Update\ -Force
+    if (Test-Path -Path (Join-Path -Path C:\Ozdoc\UserOnboarding -ChildPath 'UpdateOnboardingScript.ps1')) {
+        Move-Item -Path (Join-Path -Path C:\Ozdoc\UserOnboarding -ChildPath 'UpdateOnboardingScript.ps1') -Destination C:\Ozdoc\Update\ -Force
+    }
 
     ## Check that update was successful
     if (Test-Path -Path C:\Ozdoc\Update\UpdateOnboardingScript.ps1) {
         Write-Output "`nUpdate was successful, restarting user creation script...`r"
         Start-Sleep -Seconds 1
     }
+
     if ($scriptExists -eq $false) {
-    Start-Process -FilePath PowerShell.exe -ArgumentList "-File `"$($latestScript.FullName)`""
-    exit
+        Start-Process -FilePath PowerShell.exe -ArgumentList "-File `"$($latestScript.FullName)`""
+        exit
     }
 }
+
 
 #endregion Check Current Script Location
 
 #region Check for updates
-
 ## Define the repository and file details
 $owner = "eblackadder99"
 $repo = "OzdocOnboarding"
@@ -221,17 +224,17 @@ $enterButton.Add_Click({
         ## Add the names of the empty fields into a single string
         $emptyFieldsList = $emptyFields -join ', '
         ## Show an error message with the names of the empty fields
-        [System.Windows.Forms.MessageBox]::Show("Please fill the following fields: $emptyFieldsList", "Missing Information", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        [System.Windows.Forms.MessageBox]::Show("Please fill the following fields: $emptyFieldsList", "Validation Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
     } else {
         ## Check if the user exists in AD
         try {
-            $userValidation = Get-ADUser -Identity $username.Text -ErrorAction Stop
+            $user = Get-ADUser -Identity $username.Text -ErrorAction Stop
             [System.Windows.Forms.MessageBox]::Show("All fields are filled", "Validation Success", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
             $onboardingUserForm.DialogResult = [System.Windows.Forms.DialogResult]::OK
             $onboardingUserForm.Close()
         } catch {
             if ($_.Exception -is [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]) {
-                [System.Windows.Forms.MessageBox]::Show("User does not exist, please verify the user you are trying to copy in AD", "User Does Not Exist", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+                [System.Windows.Forms.MessageBox]::Show("User does not exist, please verify the user you are trying to copy", "Validation Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
             } else {
                 throw $_
             }
@@ -803,7 +806,7 @@ if ($result = $true)
     if ($null -eq $userExists) {
         $Username = 'Template.User'
     } else {
-        $Username = '$Username.Text'
+        $Username = $Username.Text
     }
     $newSAMAccountName = $newSAMAccountName.Text
     $newDisplayName = $newDisplayName.Text
@@ -823,7 +826,6 @@ if ($result = $true)
     }
     Write-Host "All information has been entered"
 }
-
 #endregion User Creation Form
 
 #region AD User Creation
